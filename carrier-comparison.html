@@ -142,7 +142,7 @@
       <span class="slider-val" id="spendVal">4万円</span>
     </div>
     <div class="note-row">
-      ※ au マネ活2のお買い物ポイント(-2,500P/月)は月10万円決済が前提条件のため固定計上
+      ※ au お買い物ポイント: +2.5%（上限2,500P、月10万円で到達）／ dカード通常還元: +1%
     </div>
   </div>
 
@@ -261,14 +261,14 @@ const patterns = [
     telecomPoint: 1109,
     jibunBank: 550,
     tsushinWari: 1650,
-    okaimo: 2500,  // 月10万円決済前提で固定
+    okaimoRate: (x) => Math.min(x * 0.025, 2500),  // 2.5%、上限2,500P（10万円で到達）
     goldAnnual: Math.round(11000 / 12),
     conditions: [
       'auじぶん銀行 −550円（残高50万円以上）',
       '通信料支払い特典 −1,650円（ゴールドカード払い）',
-      'お買い物ポイント −2,500P（月10万円決済前提）★',
+      'お買い物ポイント +2.5%（上限2,500P、10万円で到達）',
       'au通信料10%還元 +1,109P/月（大人①＋子供分）',
-      '★ゴールドカード年会費 月換算+917円',
+      'ゴールドカード年会費 月換算+917円',
     ],
   },
 ];
@@ -284,11 +284,11 @@ function calcNet(pattern, spend) {
     const standard = pattern.fixedCost();
     const jibun = pattern.jibunBank;
     const tsushin = pattern.tsushinWari;
-    const okaimo = pattern.okaimo;
+    const okaimo = pattern.okaimoRate(spend);
     const goldAnn = pattern.goldAnnual;
     const telecom = pattern.telecomPoint;
     const jissitu = standard - jibun - tsushin - okaimo + goldAnn - telecom;
-    return { standard, jissitu, bonusP: 0, baseP: 0, shopP: 0, telecomP: telecom };
+    return { standard, jissitu, okaimoP: okaimo, bonusP: 0, baseP: 0, shopP: 0, telecomP: telecom };
   }
 
   const net = fixed - shopP - telecomP;
@@ -318,8 +318,8 @@ function renderCards(spend) {
     const breakdownRows = isAu ? `
       <div class="row"><span class="lbl">じぶん銀行割</span><span class="val green">−550円</span></div>
       <div class="row"><span class="lbl">通信料支払い特典</span><span class="val green">−1,650円</span></div>
-      <div class="row"><span class="lbl">お買い物ポイント★</span><span class="val green">−2,500P</span></div>
-      <div class="row"><span class="lbl">au通信料10%還元 <span class="badge-new">追加</span></span><span class="val green">+1,109P</span></div>
+      <div class="row"><span class="lbl">　└ お買い物ポイント（+2.5%、上限2,500P）</span><span class="val blue">+${fmtP(r.okaimoP)}</span></div>
+      <div class="row"><span class="lbl">au通信料10%還元 <span class="badge-new">追加</span></span><span class="val blue">+1,109P</span></div>
       <div class="row"><span class="lbl">PAYゴールド年会費</span><span class="val red">+917円/月</span></div>
     ` : `
       <div class="row"><span class="lbl">dカード払い割</span><span class="val green">${p.id === 'p1' ? '−660円' : '−1,650円'}</span></div>
@@ -344,7 +344,7 @@ function renderCards(spend) {
       <div class="divider"></div>
       <div class="total-lbl">ポイント差引後 実質</div>
       <div class="total ${isBest ? 'green' : 'muted'}">${fmt(r.jissitu)}</div>
-      ${isAu ? '<div class="sub-total">★月10万円決済・じぶん銀行が条件</div>' : ''}
+      ${isAu ? `<div class="sub-total">お買い物ポイント上限: 10万円で2,500P ／ じぶん銀行残高50万円以上が条件</div>` : ''}
     </div>`;
   }).join('');
 }
