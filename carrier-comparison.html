@@ -197,8 +197,8 @@ const patterns = [
     },
     annualFee: 0,
     poikatsu: 0,
-    shopRate: (x) => x * 0.01,
-    shopCap: Infinity,
+    bonusRate: (x) => 0,
+    baseRate: (x) => x * 0.01,
     telecomPoint: 0,
     conditions: ['dカード払い割 −660円（3回線×−220円）', 'ドコモ光セット割 −3,630円', '通信料ポイント還元なし'],
   },
@@ -219,10 +219,8 @@ const patterns = [
     },
     annualFee: 11000,
     poikatsu: 2200,
-    shopRate: (x) => {
-      const bonus = Math.min(x * 0.05, 4000);
-      return bonus + x * 0.01;
-    },
+    bonusRate: (x) => Math.min(x * 0.05, 4000),
+    baseRate: (x) => x * 0.01,
     telecomPoint: 650,
     conditions: ['dカードGOLD払い割 −1,650円（3回線×−550円）', 'ポイ活オプション +2,200円', 'ドコモmini通信料10%還元 +650P/月', 'ポイ活ボーナス+5%（上限4,000P、8万円で到達）'],
   },
@@ -243,10 +241,8 @@ const patterns = [
     },
     annualFee: 29700,
     poikatsu: 2200,
-    shopRate: (x) => {
-      const bonus = Math.min(x * 0.10, 4000);
-      return bonus + x * 0.01;
-    },
+    bonusRate: (x) => Math.min(x * 0.10, 4000),
+    baseRate: (x) => x * 0.01,
     telecomPoint: 650,
     conditions: ['dカードPLATINUM払い割 −1,650円（3回線×−550円）', 'ポイ活オプション +2,200円', 'ドコモmini通信料10%還元 +650P/月', 'ポイ活ボーナス+10%（上限4,000P、4万円で到達）'],
   },
@@ -260,7 +256,8 @@ const patterns = [
     fixedCost: () => 17919,  // 10208+4070+2013+1628
     annualFee: 11000,
     poikatsu: 0,
-    shopRate: () => 0,  // マネ活2のお買い物2,500Pは別計上
+    bonusRate: () => 0,
+    baseRate: () => 0,  // マネ活2のお買い物2,500Pは別計上
     telecomPoint: 1109,
     jibunBank: 550,
     tsushinWari: 1650,
@@ -278,23 +275,24 @@ const patterns = [
 
 function calcNet(pattern, spend) {
   const fixed = pattern.fixedCost();
-  const shopP = pattern.shopRate ? pattern.shopRate(spend) : 0;
+  const bonusP = pattern.bonusRate ? pattern.bonusRate(spend) : 0;
+  const baseP  = pattern.baseRate  ? pattern.baseRate(spend)  : 0;
+  const shopP  = bonusP + baseP;
   const telecomP = pattern.telecomPoint || 0;
 
   if (pattern.id === 'au') {
-    const standard = pattern.fixedCost();  // 17919
-    const jibun = pattern.jibunBank;       // 550
-    const tsushin = pattern.tsushinWari;   // 1650
-    const okaimo = pattern.okaimo;         // 2500
-    const goldAnn = pattern.goldAnnual;    // 917
-    const telecom = pattern.telecomPoint;  // 1109
+    const standard = pattern.fixedCost();
+    const jibun = pattern.jibunBank;
+    const tsushin = pattern.tsushinWari;
+    const okaimo = pattern.okaimo;
+    const goldAnn = pattern.goldAnnual;
+    const telecom = pattern.telecomPoint;
     const jissitu = standard - jibun - tsushin - okaimo + goldAnn - telecom;
-    // 17919 - 550 - 1650 - 2500 + 917 - 1109 = 13027
-    return { standard, jissitu, shopP: 0, telecomP: telecom };
+    return { standard, jissitu, bonusP: 0, baseP: 0, shopP: 0, telecomP: telecom };
   }
 
   const net = fixed - shopP - telecomP;
-  return { standard: fixed, jissitu: net, shopP, telecomP };
+  return { standard: fixed, jissitu: net, bonusP, baseP, shopP, telecomP };
 }
 
 function fmt(n) {
@@ -317,14 +315,6 @@ function renderCards(spend) {
     const isBest = Math.round(r.jissitu) === Math.round(minNet);
     const isAu = p.id === 'au';
 
-    let shopLabel = '';
-    let shopDetail = '';
-    if (!isAu) {
-      const shopRate = p.id === 'p1' ? '1%' : (p.id === 'p2' ? '最大6%（上限4,000P）' : '最大11%（上限4,000P）');
-      shopLabel = `お買物還元 ${shopRate}`;
-      shopDetail = fmtP(r.shopP);
-    }
-
     const breakdownRows = isAu ? `
       <div class="row"><span class="lbl">じぶん銀行割</span><span class="val green">−550円</span></div>
       <div class="row"><span class="lbl">通信料支払い特典</span><span class="val green">−1,650円</span></div>
@@ -335,7 +325,11 @@ function renderCards(spend) {
       <div class="row"><span class="lbl">dカード払い割</span><span class="val green">${p.id === 'p1' ? '−660円' : '−1,650円'}</span></div>
       ${p.id !== 'p1' ? `<div class="row"><span class="lbl">ポイ活オプション</span><span class="val red">+2,200円</span></div>` : ''}
       ${p.id !== 'p1' ? `<div class="row"><span class="lbl">年会費月換算</span><span class="val red">+${p.id === 'p2' ? '917' : '2,475'}円</span></div>` : ''}
-      <div class="row"><span class="lbl">${shopLabel}</span><span class="val blue">${shopDetail}</span></div>
+      ${p.id !== 'p1'
+        ? `<div class="row"><span class="lbl">　└ ポイ活ボーナス還元（${p.id === 'p2' ? '+5%' : '+10%'}、上限4,000P）</span><span class="val blue">+${fmtP(r.bonusP)}</span></div>
+           <div class="row"><span class="lbl">　└ 通常還元（+1%）</span><span class="val blue">+${fmtP(r.baseP)}</span></div>`
+        : `<div class="row"><span class="lbl">お買物還元（通常 +1%）</span><span class="val blue">+${fmtP(r.baseP)}</span></div>`
+      }
       <div class="row"><span class="lbl">通信料10%還元 <span class="badge-new">${p.id === 'p1' ? 'なし' : '追加'}</span></span><span class="val ${p.id === 'p1' ? 'muted' : 'blue'}">${p.id === 'p1' ? '0P' : '+650P'}</span></div>
     `;
 
