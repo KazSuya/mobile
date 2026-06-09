@@ -95,7 +95,7 @@
 <body>
 <div class="container">
   <h1>携帯キャリア家族4人プラン比較 2026</h1>
-  <p class="updated">最終更新: 2026年6月 ／ 通信料10%ポイント還元を反映</p>
+  <p class="updated">最終更新: 2026年6月 ／ 爆アゲセレクション・サブスクぷらすポイント（Netflix/YouTube/Google AI Pro）含む</p>
 
   <!-- 前提条件 -->
   <div class="section-head">家族構成・前提条件</div>
@@ -168,6 +168,8 @@
     <p><strong>au PAYゴールドカード 通信料10%還元：</strong>マネ活2の「通信料支払い特典 -1,650円」とは別のカード特典。大人①分(≈778P) + 子供分(≈331P) = 合計≈1,109P/月を計上。au大人②（ahamo）はdocomo回線のためau通信料還元対象外。</p>
     <p><strong>Apple Watch：</strong>UQモバイルはセルラー対応なし。docomo ワンナンバー550円 / au ナンバーシェア385円（auが月165円安）。</p>
     <p><strong>年会費：</strong>dカードGOLD 11,000円/年（月換算917円）、dカードPLATINUM 29,700円/年（月換算2,475円）、au PAYゴールドカード 11,000円/年（月換算917円）。</p>
+    <p><strong>爆アゲセレクション（docomo）：</strong>対象はahamo回線（大人①）のみ。ドコモmini回線は対象外。Netflix プレミアム 2,290円→10%=209P、YouTube プレミアム 1,280円→5%=59P、Google AI Pro（1,760円）は爆アゲ非対象（2025年12月改定時点）。合計還元268P/月。</p>
+    <p><strong>au サブスクぷらすポイント：</strong>auマネ活プラン各種は全サービス20%還元。Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。Google AI Proの1,760円はauキャンペーン価格（終了時期未定）。dポイント・Pontaポイントともに1P=1円として実質計算。</p>
   </div>
 </div>
 
@@ -181,6 +183,21 @@ const DOCOMO_BASE = {
   // ドコモmini 3回線合計（dカード払い割前）= 3520+2090+1540 = 7150
   mini3_taxex: (3520 + 2090 + 1540) / 1.1,  // ≈ 6500
 };
+
+// ========== エンタメサブスク定数 ==========
+// Netflix プレミアム 2,290円 + YouTube プレミアム 1,280円 + Google AI Pro 1,760円
+const ENT_TOTAL = 5330;
+const ENT_SERVICES = [
+  { label: 'Netflix プレミアム', price: 2290 },
+  { label: 'YouTube プレミアム', price: 1280 },
+  { label: 'Google AI Pro',     price: 1760 },
+];
+// 爆アゲセレクション（ahamo回線のみ: P1/P2/P3共通）
+// Netflix: 2,290÷1.1×10%→小数切上=209P  YouTube: 1,280÷1.1×5%→59P  Google AI Pro: 対象外
+const BAKUAGE = { netflix: 209, youtube: 59, googleai: 0, total: 268 };
+// au サブスクぷらすポイント（auマネ活プラン各種 20%）
+// Netflix: 2,082×20%→417P  YouTube: 1,164×20%→233P  Google AI Pro: 1,600×20%→320P
+const SABUUKU  = { netflix: 417, youtube: 233, googleai: 320, total: 970 };
 
 const patterns = [
   {
@@ -288,11 +305,13 @@ function calcNet(pattern, spend) {
     const goldAnn = pattern.goldAnnual;
     const telecom = pattern.telecomPoint;
     const jissitu = standard - jibun - tsushin - okaimo + goldAnn - telecom;
-    return { standard, jissitu, okaimoP: okaimo, bonusP: 0, baseP: 0, shopP: 0, telecomP: telecom };
+    const grandJissitu = jissitu + ENT_TOTAL - SABUUKU.total;
+    return { standard, jissitu, grandJissitu, okaimoP: okaimo, bonusP: 0, baseP: 0, shopP: 0, telecomP: telecom };
   }
 
   const net = fixed - shopP - telecomP;
-  return { standard: fixed, jissitu: net, bonusP, baseP, shopP, telecomP };
+  const grandJissitu = net + ENT_TOTAL - BAKUAGE.total;
+  return { standard: fixed, jissitu: net, grandJissitu, bonusP, baseP, shopP, telecomP };
 }
 
 function fmt(n) {
@@ -306,14 +325,35 @@ function renderCards(spend) {
   const grid = document.getElementById('cardGrid');
   const results = patterns.map(p => ({ pattern: p, ...calcNet(p, spend) }));
 
-  // 最安を特定
-  const nets = results.map(r => r.jissitu);
+  // 最安を特定（エンタメ込み実質合計で判定）
+  const nets = results.map(r => r.grandJissitu);
   const minNet = Math.min(...nets);
 
   grid.innerHTML = results.map(r => {
     const p = r.pattern;
-    const isBest = Math.round(r.jissitu) === Math.round(minNet);
+    const isBest = Math.round(r.grandJissitu) === Math.round(minNet);
     const isAu = p.id === 'au';
+
+    // エンタメサブスクセクション
+    const entP   = isAu ? SABUUKU.total : BAKUAGE.total;
+    const entNet = ENT_TOTAL - entP;
+    const entRows = `
+      <div class="divider"></div>
+      <div style="font-size:11px;color:#888;font-weight:600;margin:6px 0 4px;">📺 エンタメサブスク（3サービス）</div>
+      ${ENT_SERVICES.map(s => `
+        <div class="row"><span class="lbl">${s.label}${isAu && s.label==='Google AI Pro' ? ' ★' : ''}</span><span class="val">${s.price.toLocaleString()}円</span></div>
+      `).join('')}
+      ${isAu ? `
+        <div class="row"><span class="lbl">　└ サブスクぷらすポイント（全20%）</span><span class="val blue">−${fmtP(SABUUKU.total)}</span></div>
+      ` : `
+        <div class="row"><span class="lbl">　└ 爆アゲ Netflix(10%)+YouTube(5%)</span><span class="val blue">−${fmtP(BAKUAGE.netflix + BAKUAGE.youtube)}</span></div>
+        <div class="row"><span class="lbl">　└ Google AI Pro（爆アゲ対象外）</span><span class="val muted">−0P</span></div>
+      `}
+      <div class="row" style="border-top:1px solid #e5e5e5;margin-top:2px;padding-top:4px">
+        <span class="lbl" style="font-weight:500">サブスク実質小計</span>
+        <span class="val ${isAu ? 'green' : ''}" style="font-weight:600">${fmt(entNet)}</span>
+      </div>
+    `;
 
     const breakdownRows = isAu ? `
       <div class="row"><span class="lbl">じぶん銀行割</span><span class="val green">−550円</span></div>
@@ -342,9 +382,14 @@ function renderCards(spend) {
       <div class="row"><span class="lbl">月額合計（支払い）</span><span class="val">${fmt(r.standard)}</span></div>
       ${breakdownRows}
       <div class="divider"></div>
-      <div class="total-lbl">ポイント差引後 実質</div>
-      <div class="total ${isBest ? 'green' : 'muted'}">${fmt(r.jissitu)}</div>
-      ${isAu ? `<div class="sub-total">お買い物ポイント上限: 10万円で2,500P ／ じぶん銀行残高50万円以上が条件</div>` : ''}
+      <div class="total-lbl">通信費のみ 実質</div>
+      <div style="font-size:17px;font-weight:600;color:#777;margin-bottom:8px">${fmt(r.jissitu)}</div>
+      ${isAu ? `<div style="font-size:11px;color:#aaa;margin-bottom:4px">お買い物上限: 10万円で2,500P ／ じぶん銀行残高50万円以上が条件</div>` : ''}
+      ${entRows}
+      <div class="divider"></div>
+      <div class="total-lbl">📺込み 実質合計</div>
+      <div class="total ${isBest ? 'green' : 'muted'}">${fmt(r.grandJissitu)}</div>
+      ${isAu ? `<div class="sub-total">★Google AI Proはauキャンペーン価格（終了時期未定）</div>` : ''}
     </div>`;
   }).join('');
 }
