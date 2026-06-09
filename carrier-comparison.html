@@ -170,7 +170,7 @@
     <p><strong>Apple Watch：</strong>UQモバイルはセルラー対応なし。docomo ワンナンバー550円 / au ナンバーシェア385円（auが月165円安）。</p>
     <p><strong>年会費：</strong>dカードGOLD 11,000円/年（月換算917円）、dカードPLATINUM 29,700円/年（月換算2,475円）、au PAYゴールドカード 11,000円/年（月換算917円）。</p>
     <p><strong>爆アゲセレクション（docomo）：</strong>対象はahamo回線（大人①）のみ。ドコモmini回線は対象外。Netflix プレミアム 2,290円→10%=209P、YouTube プレミアム 1,280円→5%=59P、Google AI Pro（1,760円）は爆アゲ非対象（2025年12月改定時点）。合計還元268P/月。パターン④（ポイ活MAX）はahamo回線でないため爆アゲセレクション非対象。</p>
-    <p><strong>ドコモ ポイ活 MAX（パターン④）：</strong>基本料金11,748円/月。みんなドコモ割（3回線以上）-1,210円、ドコモ光セット割-1,210円を適用。大人②はドコモ mini + 5分通話無料オプション（880円）。ドコモ mini はみんなドコモ割の対象外。</p>
+    <p><strong>ドコモ ポイ活 MAX（パターン④）：</strong>基本料金11,748円/月。みんなドコモ割（3回線以上）-1,210円、ドコモ光セット割-1,210円を適用。大人②はドコモ mini + 5分通話無料オプション（880円）。ドコモ mini はみんなドコモ割の対象外。エンタメ20%還元：Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。爆アゲセレクション非対象（ahamo回線でないため）。</p>
     <p><strong>au サブスクぷらすポイント：</strong>auマネ活プラン各種は全サービス20%還元。Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。Google AI Proの1,760円はauキャンペーン価格（終了時期未定）。dポイント・Pontaポイントともに1P=1円として実質計算。</p>
   </div>
 </div>
@@ -287,7 +287,7 @@ const patterns = [
     },
     annualFee: 0,
     poikatsu: 0,
-    entPoints: 0,  // 爆アゲセレクション非対象（ahamo回線でないため）
+    entPoints: 970,  // エンタメ20%還元（Netflix 417P + YouTube 233P + Google AI Pro 320P）
     bonusRate: (x) => 0,
     baseRate: (x) => x * 0.01,
     telecomPoint: 0,
@@ -295,7 +295,7 @@ const patterns = [
       '大人①: ポイ活MAX −2,420円（光セット割+みんなドコモ割 各-1,210円）',
       '5分通話無料オプション 大人2回線 +1,760円（880円×2）',
       'dカード払い割 −880円（4回線×−220円）',
-      '爆アゲセレクション 非対象（ahamo回線でないため）',
+      'エンタメ20%還元 −970P/月（Netflix 417P + YouTube 233P + Google AI Pro 320P）',
     ],
   },
   {
@@ -371,7 +371,8 @@ function renderCards(spend) {
     const isAu = p.id === 'au';
 
     // エンタメサブスクセクション
-    const entP   = isAu ? SABUUKU.total : BAKUAGE.total;
+    const isP4 = p.id === 'p4';
+    const entP   = (isAu || isP4) ? SABUUKU.total : BAKUAGE.total;
     const entNet = ENT_TOTAL - entP;
     const entRows = `
       <div class="divider"></div>
@@ -381,13 +382,15 @@ function renderCards(spend) {
       `).join('')}
       ${isAu ? `
         <div class="row"><span class="lbl">　└ サブスクぷらすポイント（全20%）</span><span class="val blue">−${fmtP(SABUUKU.total)}</span></div>
+      ` : isP4 ? `
+        <div class="row"><span class="lbl">　└ エンタメ還元（全20%）</span><span class="val blue">−${fmtP(SABUUKU.total)}</span></div>
       ` : `
         <div class="row"><span class="lbl">　└ 爆アゲ Netflix(10%)+YouTube(5%)</span><span class="val blue">−${fmtP(BAKUAGE.netflix + BAKUAGE.youtube)}</span></div>
         <div class="row"><span class="lbl">　└ Google AI Pro（爆アゲ対象外）</span><span class="val muted">−0P</span></div>
       `}
       <div class="row" style="border-top:1px solid #e5e5e5;margin-top:2px;padding-top:4px">
         <span class="lbl" style="font-weight:500">サブスク実質小計</span>
-        <span class="val ${isAu ? 'green' : ''}" style="font-weight:600">${fmt(entNet)}</span>
+        <span class="val ${(isAu || isP4) ? 'green' : ''}" style="font-weight:600">${fmt(entNet)}</span>
       </div>
     `;
 
