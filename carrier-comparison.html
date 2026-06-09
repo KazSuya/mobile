@@ -30,6 +30,7 @@
   .card.docomo-p1 { border-top: 3px solid #aaa; }
   .card.docomo-p2 { border-top: 3px solid #0071e3; }
   .card.docomo-p3 { border-top: 3px solid #5856d6; }
+  .card.docomo-p4 { border-top: 3px solid #00a040; }
 
   .carrier-tag { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 4px; }
   .carrier-tag.docomo { color: #e5002b; }
@@ -168,7 +169,8 @@
     <p><strong>au PAYゴールドカード 通信料10%還元：</strong>マネ活2の「通信料支払い特典 -1,650円」とは別のカード特典。大人①分(≈778P) + 子供分(≈331P) = 合計≈1,109P/月を計上。au大人②（ahamo）はdocomo回線のためau通信料還元対象外。</p>
     <p><strong>Apple Watch：</strong>UQモバイルはセルラー対応なし。docomo ワンナンバー550円 / au ナンバーシェア385円（auが月165円安）。</p>
     <p><strong>年会費：</strong>dカードGOLD 11,000円/年（月換算917円）、dカードPLATINUM 29,700円/年（月換算2,475円）、au PAYゴールドカード 11,000円/年（月換算917円）。</p>
-    <p><strong>爆アゲセレクション（docomo）：</strong>対象はahamo回線（大人①）のみ。ドコモmini回線は対象外。Netflix プレミアム 2,290円→10%=209P、YouTube プレミアム 1,280円→5%=59P、Google AI Pro（1,760円）は爆アゲ非対象（2025年12月改定時点）。合計還元268P/月。</p>
+    <p><strong>爆アゲセレクション（docomo）：</strong>対象はahamo回線（大人①）のみ。ドコモmini回線は対象外。Netflix プレミアム 2,290円→10%=209P、YouTube プレミアム 1,280円→5%=59P、Google AI Pro（1,760円）は爆アゲ非対象（2025年12月改定時点）。合計還元268P/月。パターン④（ポイ活MAX）はahamo回線でないため爆アゲセレクション非対象。</p>
+    <p><strong>ドコモ ポイ活 MAX（パターン④）：</strong>基本料金11,748円/月。みんなドコモ割（3回線以上）-1,210円、ドコモ光セット割-1,210円を適用。大人②はドコモ mini + 5分通話無料オプション（880円）。ドコモ mini はみんなドコモ割の対象外。</p>
     <p><strong>au サブスクぷらすポイント：</strong>auマネ活プラン各種は全サービス20%還元。Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。Google AI Proの1,760円はauキャンペーン価格（終了時期未定）。dポイント・Pontaポイントともに1P=1円として実質計算。</p>
   </div>
 </div>
@@ -264,6 +266,39 @@ const patterns = [
     conditions: ['dカードPLATINUM払い割 −1,650円（3回線×−550円）', 'ポイ活オプション +2,200円', 'ドコモmini通信料10%還元 +650P/月', 'ポイ活ボーナス+10%（上限4,000P、4万円で到達）'],
   },
   {
+    id: 'p4',
+    label: 'パターン④ ポイ活MAX',
+    cardClass: 'docomo-p4',
+    carrier: 'docomo',
+    cardLabel: 'ドコモ ポイ活 MAX',
+    sub: 'dカード（無料）',
+    fixedCost: () => {
+      // 大人①: ドコモ ポイ活 MAX 11,748+880(5分通話)-1,210(光割)-1,210(みんなドコモ割) = 10,208
+      // 大人②: ドコモ mini 4GB 2,750+880(5分通話)-1,210(光割) = 2,420
+      // 子供①: ドコモ mini+ワンナンバー 2,750+550-1,210 = 2,090
+      // 子供②: ドコモ mini 4GB 2,750-1,210 = 1,540
+      const dc_wari = 220 * 4;  // -880（4回線）
+      const adult1 = 11748 + 880 - 1210 - 1210;  // 10,208
+      const adult2 = 2750 + 880 - 1210;           // 2,420（miniに5分通話追加）
+      const child1 = 2750 + 550 - 1210;           // 2,090
+      const child2 = 2750 - 1210;                  // 1,540
+      return adult1 + adult2 + child1 + child2 - dc_wari;
+      // = 10208+2420+2090+1540-880 = 15,378
+    },
+    annualFee: 0,
+    poikatsu: 0,
+    entPoints: 0,  // 爆アゲセレクション非対象（ahamo回線でないため）
+    bonusRate: (x) => 0,
+    baseRate: (x) => x * 0.01,
+    telecomPoint: 0,
+    conditions: [
+      '大人①: ポイ活MAX −2,420円（光セット割+みんなドコモ割 各-1,210円）',
+      '5分通話無料オプション 大人2回線 +1,760円（880円×2）',
+      'dカード払い割 −880円（4回線×−220円）',
+      '爆アゲセレクション 非対象（ahamo回線でないため）',
+    ],
+  },
+  {
     id: 'au',
     label: 'au',
     cardClass: 'au-card',
@@ -310,7 +345,8 @@ function calcNet(pattern, spend) {
   }
 
   const net = fixed - shopP - telecomP;
-  const grandJissitu = net + ENT_TOTAL - BAKUAGE.total;
+  const entPoints = ('entPoints' in pattern) ? pattern.entPoints : BAKUAGE.total;
+  const grandJissitu = net + ENT_TOTAL - entPoints;
   return { standard: fixed, jissitu: net, grandJissitu, bonusP, baseP, shopP, telecomP };
 }
 
