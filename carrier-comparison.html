@@ -30,7 +30,8 @@
   .card.docomo-p1 { border-top: 3px solid #aaa; }
   .card.docomo-p2 { border-top: 3px solid #0071e3; }
   .card.docomo-p3 { border-top: 3px solid #5856d6; }
-  .card.docomo-p4 { border-top: 3px solid #00a040; }
+  .card.docomo-p4g { border-top: 3px solid #00a040; }
+  .card.docomo-p4p { border-top: 3px solid #007030; }
 
   .carrier-tag { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 4px; }
   .carrier-tag.docomo { color: #e5002b; }
@@ -170,7 +171,7 @@
     <p><strong>Apple Watch：</strong>UQモバイルはセルラー対応なし。docomo ワンナンバー550円 / au ナンバーシェア385円（auが月165円安）。</p>
     <p><strong>年会費：</strong>dカードGOLD 11,000円/年（月換算917円）、dカードPLATINUM 29,700円/年（月換算2,475円）、au PAYゴールドカード 11,000円/年（月換算917円）。</p>
     <p><strong>爆アゲセレクション（docomo）：</strong>対象はahamo回線（大人①）のみ。ドコモmini回線は対象外。Netflix プレミアム 2,290円→10%=209P、YouTube プレミアム 1,280円→5%=59P、Google AI Pro（1,760円）は爆アゲ非対象（2025年12月改定時点）。合計還元268P/月。パターン④（ポイ活MAX）はahamo回線でないため爆アゲセレクション非対象。</p>
-    <p><strong>ドコモ ポイ活 MAX（パターン④）：</strong>基本料金11,748円/月。みんなドコモ割（3回線以上）-1,210円、ドコモ光セット割-1,210円を適用。大人②はドコモ mini + 5分通話無料オプション（880円）。ドコモ mini はみんなドコモ割の対象外。エンタメ20%還元：Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。爆アゲセレクション非対象（ahamo回線でないため）。</p>
+    <p><strong>ドコモ ポイ活 MAX（パターン④⑤）：</strong>基本料金11,748円/月。みんなドコモ割（3回線以上）-1,210円、ドコモ光セット割-1,210円を適用。大人②はドコモ mini + 5分通話無料オプション（880円）。ドコモ mini はみんなドコモ割の対象外。ahamoと異なり全4回線が通信料10%還元対象（税抜14,780円×10% ≈ 1,478P/月）。ポイ活ボーナス：GOLDカード+5%、PLATINUMカード+10%（上限4,000P）。エンタメ20%還元：Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。爆アゲセレクション非対象。カード払い割は4回線×550円=2,200円。</p>
     <p><strong>au サブスクぷらすポイント：</strong>auマネ活プラン各種は全サービス20%還元。Netflix 417P、YouTube 233P、Google AI Pro 320P、合計970P/月。Google AI Proの1,760円はauキャンペーン価格（終了時期未定）。dポイント・Pontaポイントともに1P=1円として実質計算。</p>
   </div>
 </div>
@@ -266,35 +267,72 @@ const patterns = [
     conditions: ['dカードPLATINUM払い割 −1,650円（3回線×−550円）', 'ポイ活オプション +2,200円', 'ドコモmini通信料10%還元 +650P/月', 'ポイ活ボーナス+10%（上限4,000P、4万円で到達）'],
   },
   {
-    id: 'p4',
-    label: 'パターン④ ポイ活MAX',
-    cardClass: 'docomo-p4',
+    id: 'p4g',
+    label: 'パターン④ ポイ活MAX＋GOLD',
+    cardClass: 'docomo-p4g',
     carrier: 'docomo',
     cardLabel: 'ドコモ ポイ活 MAX',
-    sub: 'dカード（無料）',
+    sub: 'dカードGOLD 年会費11,000円',
     fixedCost: () => {
-      // 大人①: ドコモ ポイ活 MAX 11,748+880(5分通話)-1,210(光割)-1,210(みんなドコモ割) = 10,208
-      // 大人②: ドコモ mini 4GB 2,750+880(5分通話)-1,210(光割) = 2,420
-      // 子供①: ドコモ mini+ワンナンバー 2,750+550-1,210 = 2,090
-      // 子供②: ドコモ mini 4GB 2,750-1,210 = 1,540
-      const dc_wari = 220 * 4;  // -880（4回線）
+      // 大人①: ポイ活MAX 11,748+880(5分通話)-1,210(光割)-1,210(みんなドコモ割) = 10,208
+      // 大人②: ドコモmini 2,750+880(5分通話)-1,210(光割) = 2,420
+      // 子供①: ドコモmini+ワンナンバー 2,750+550-1,210 = 2,090
+      // 子供②: ドコモmini 2,750-1,210 = 1,540
       const adult1 = 11748 + 880 - 1210 - 1210;  // 10,208
-      const adult2 = 2750 + 880 - 1210;           // 2,420（miniに5分通話追加）
+      const adult2 = 2750 + 880 - 1210;           // 2,420
       const child1 = 2750 + 550 - 1210;           // 2,090
       const child2 = 2750 - 1210;                  // 1,540
-      return adult1 + adult2 + child1 + child2 - dc_wari;
-      // = 10208+2420+2090+1540-880 = 15,378
+      const dc_wari = 550 * 4;                     // 2,200（GOLD 550円/回線）
+      const annual = Math.round(11000 / 12);       // 917
+      return adult1 + adult2 + child1 + child2 - dc_wari + annual;
+      // = 10208+2420+2090+1540-2200+917 = 14,975
     },
-    annualFee: 0,
+    annualFee: 11000,
     poikatsu: 0,
-    entPoints: 970,  // エンタメ20%還元（Netflix 417P + YouTube 233P + Google AI Pro 320P）
-    bonusRate: (x) => 0,
+    entPoints: 970,
+    bonusRate: (x) => Math.min(x * 0.05, 4000),
     baseRate: (x) => x * 0.01,
-    telecomPoint: 0,
+    telecomPoint: 1478,
     conditions: [
       '大人①: ポイ活MAX −2,420円（光セット割+みんなドコモ割 各-1,210円）',
       '5分通話無料オプション 大人2回線 +1,760円（880円×2）',
-      'dカード払い割 −880円（4回線×−220円）',
+      'dカードGOLD払い割 −2,200円（4回線×−550円）',
+      'GOLDカード年会費 +917円/月',
+      'ポイ活ボーナス+5%（上限4,000P）',
+      '通信料10%還元 +1,478P/月（4回線すべて対象）',
+      'エンタメ20%還元 −970P/月（Netflix 417P + YouTube 233P + Google AI Pro 320P）',
+    ],
+  },
+  {
+    id: 'p4p',
+    label: 'パターン⑤ ポイ活MAX＋PLATINUM',
+    cardClass: 'docomo-p4p',
+    carrier: 'docomo',
+    cardLabel: 'ドコモ ポイ活 MAX',
+    sub: 'dカードPLATINUM 年会費29,700円',
+    fixedCost: () => {
+      const adult1 = 11748 + 880 - 1210 - 1210;  // 10,208
+      const adult2 = 2750 + 880 - 1210;           // 2,420
+      const child1 = 2750 + 550 - 1210;           // 2,090
+      const child2 = 2750 - 1210;                  // 1,540
+      const dc_wari = 550 * 4;                     // 2,200（PLATINUM 550円/回線）
+      const annual = Math.round(29700 / 12);       // 2,475
+      return adult1 + adult2 + child1 + child2 - dc_wari + annual;
+      // = 10208+2420+2090+1540-2200+2475 = 16,533
+    },
+    annualFee: 29700,
+    poikatsu: 0,
+    entPoints: 970,
+    bonusRate: (x) => Math.min(x * 0.10, 4000),
+    baseRate: (x) => x * 0.01,
+    telecomPoint: 1478,
+    conditions: [
+      '大人①: ポイ活MAX −2,420円（光セット割+みんなドコモ割 各-1,210円）',
+      '5分通話無料オプション 大人2回線 +1,760円（880円×2）',
+      'dカードPLATINUM払い割 −2,200円（4回線×−550円）',
+      'PLATINUMカード年会費 +2,475円/月',
+      'ポイ活ボーナス+10%（上限4,000P）',
+      '通信料10%還元 +1,478P/月（4回線すべて対象）',
       'エンタメ20%還元 −970P/月（Netflix 417P + YouTube 233P + Google AI Pro 320P）',
     ],
   },
@@ -371,7 +409,9 @@ function renderCards(spend) {
     const isAu = p.id === 'au';
 
     // エンタメサブスクセクション
-    const isP4 = p.id === 'p4';
+    const isP4 = p.id === 'p4g' || p.id === 'p4p';
+    const isP4g = p.id === 'p4g';
+    const isP4p = p.id === 'p4p';
     const entP   = (isAu || isP4) ? SABUUKU.total : BAKUAGE.total;
     const entNet = ENT_TOTAL - entP;
     const entRows = `
@@ -400,6 +440,12 @@ function renderCards(spend) {
       <div class="row"><span class="lbl">　└ お買い物ポイント（+2.5%、上限2,500P）</span><span class="val blue">+${fmtP(r.okaimoP)}</span></div>
       <div class="row"><span class="lbl">au通信料10%還元 <span class="badge-new">追加</span></span><span class="val blue">+1,109P</span></div>
       <div class="row"><span class="lbl">PAYゴールド年会費</span><span class="val red">+917円/月</span></div>
+    ` : isP4 ? `
+      <div class="row"><span class="lbl">dカード${isP4g ? 'GOLD' : 'PLATINUM'}払い割</span><span class="val green">−2,200円（4回線×−550円）</span></div>
+      <div class="row"><span class="lbl">年会費月換算</span><span class="val red">+${isP4g ? '917' : '2,475'}円</span></div>
+      <div class="row"><span class="lbl">　└ ポイ活ボーナス還元（${isP4g ? '+5%' : '+10%'}、上限4,000P）</span><span class="val blue">+${fmtP(r.bonusP)}</span></div>
+      <div class="row"><span class="lbl">　└ 通常還元（+1%）</span><span class="val blue">+${fmtP(r.baseP)}</span></div>
+      <div class="row"><span class="lbl">通信料10%還元（4回線）<span class="badge-new">追加</span></span><span class="val blue">+1,478P</span></div>
     ` : `
       <div class="row"><span class="lbl">dカード払い割</span><span class="val green">${p.id === 'p1' ? '−660円' : '−1,650円'}</span></div>
       ${p.id !== 'p1' ? `<div class="row"><span class="lbl">ポイ活オプション</span><span class="val red">+2,200円</span></div>` : ''}
