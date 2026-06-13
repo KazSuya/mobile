@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>スピードメーター｜カメラ時速計測</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#141b29; --panel2:#1c2638;
+    --accent:#3b82f6; --accent2:#22d3ee; --ok:#22c55e; --warn:#f59e0b;
+    --text:#e8eef9; --muted:#8b9bb4; --line:#2a3650;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Segoe UI",sans-serif;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:env(safe-area-inset-top) 12px 32px}
+  h1{font-size:18px;margin:14px 4px 4px;display:flex;align-items:center;gap:8px}
+  h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 0 rgba(34,197,94,.6)}
+  h1 .dot.live{background:var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  .sub{color:var(--muted);font-size:12px;margin:0 4px 10px}
+
+  .stage{position:relative;width:100%;aspect-ratio:3/4;background:#000;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+  @media(min-aspect-ratio:1/1){.stage{aspect-ratio:16/9}}
+  video,canvas.overlay{position:absolute;inset:0;width:100%;height:100%}
+  video{object-fit:cover}
+  canvas.overlay{touch-action:none}
+  .startbtn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:linear-gradient(160deg,#0b1220,#10182a);cursor:pointer}
+  .startbtn .cam{font-size:46px}
+  .startbtn .t{font-weight:700;font-size:16px}
+  .startbtn .s{color:var(--muted);font-size:12px;text-align:center;padding:0 24px;line-height:1.6}
+  .hidden{display:none!important}
+
+  .readout{position:absolute;left:10px;top:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+  .badge{background:rgba(10,15,25,.6);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--muted)}
+  .badge b{color:var(--text)}
+  .status{position:absolute;left:10px;bottom:10px;background:rgba(10,15,25,.6);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;pointer-events:none}
+  .status.armed{color:var(--warn);border-color:var(--warn)}
+  .status.hit{color:var(--ok);border-color:var(--ok)}
+
+  .speedcard{margin-top:14px;background:linear-gradient(150deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:18px;text-align:center}
+  .speedcard .num{font-size:60px;font-weight:800;line-height:1;letter-spacing:-1px;background:linear-gradient(90deg,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .speedcard .unit{font-size:18px;color:var(--muted);font-weight:700;margin-left:6px}
+  .speedcard .meta{color:var(--muted);font-size:12px;margin-top:8px}
+  .speedcard.flash{animation:flash .5s ease}
+  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(34,211,238,.5)}100%{box-shadow:0 0 0 14px rgba(34,211,238,0)}}
+
+  .panel{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .panel h2{font-size:13px;margin:0 0 12px;color:var(--muted);font-weight:700;letter-spacing:.5px}
+  .row{display:flex;align-items:center;gap:12px;margin:12px 0}
+  .row label{flex:0 0 96px;font-size:13px;color:var(--muted)}
+  .row .val{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px}
+  input[type=range]{flex:1;-webkit-appearance:none;height:6px;border-radius:6px;background:var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid #0b0f17;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  input[type=number]{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:16px;width:100%}
+  .btns{display:flex;gap:10px;margin-top:6px}
+  button.act{flex:1;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer}
+  button.act:active{transform:scale(.98)}
+  button.act.primary{background:var(--accent);border-color:var(--accent)}
+  button.act.danger{color:#fca5a5}
+
+  .meters{display:flex;gap:8px;margin-top:4px}
+  .meter{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
+  .meter .lab{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+  .meter .bar{height:8px;border-radius:6px;background:var(--line);margin-top:6px;overflow:hidden}
+  .meter .fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .05s linear}
+  .meter.on{border-color:var(--ok)}
+  .meter.on .fill{background:var(--ok)}
+
+  .hist{margin-top:6px}
+  .hist .item{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .hist .item:last-child{border-bottom:none}
+  .hist .item .sp{font-weight:800;font-variant-numeric:tabular-nums}
+  .hist .item .dt{color:var(--muted);font-size:11px}
+  .hist .empty{color:var(--muted);font-size:12px;text-align:center;padding:14px}
+
+  .notes{margin-top:18px;color:var(--muted);font-size:11.5px;line-height:1.8}
+  .notes b{color:var(--text)}
+  .notes ul{padding-left:18px;margin:6px 0}
+  details summary{cursor:pointer;color:var(--accent2);font-size:12px;margin-top:8px}
+  .err{background:#3a1620;border:1px solid #7f1d1d;color:#fecaca;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot" id="liveDot"></span> スピードメーター</h1>
+  <p class="sub">カメラの画角を横切る物体の時速を、2本のゲート間で計測します（ボール・スポーツ向け）</p>
+
+  <div class="stage">
+    <video id="video" playsinline muted></video>
+    <canvas class="overlay" id="overlay"></canvas>
+    <div class="readout">
+      <div class="badge">FPS <b id="fps">–</b></div>
+      <div class="badge">間隔 <b id="distBadge">5.0</b> m</div>
+    </div>
+    <div class="status" id="status">カメラ停止中</div>
+    <div class="startbtn" id="startBtn">
+      <div class="cam">📷</div>
+      <div class="t">タップしてカメラを起動</div>
+      <div class="s">背面カメラを使用します。物体がカメラに対して<b>横向き</b>に通過するよう設置してください。</div>
+    </div>
+  </div>
+
+  <div class="speedcard" id="speedCard">
+    <div><span class="num" id="speedNum">--</span><span class="unit">km/h</span></div>
+    <div class="meta" id="speedMeta">計測待機中</div>
+  </div>
+
+  <div class="panel">
+    <h2>計測設定</h2>
+    <div class="row">
+      <label>ゲート間の実距離</label>
+      <input type="number" id="distInput" value="5" min="0.1" step="0.1" inputmode="decimal">
+      <span class="val">m</span>
+    </div>
+    <div class="row">
+      <label>検知感度</label>
+      <input type="range" id="sens" min="0" max="100" value="55">
+      <span class="val" id="sensVal">55</span>
+    </div>
+    <div class="meters">
+      <div class="meter" id="meterA"><div class="lab"><span>ゲートA（左）</span><span id="scoreA">0</span></div><div class="bar"><div class="fill" id="fillA"></div></div></div>
+      <div class="meter" id="meterB"><div class="lab"><span>ゲートB（右）</span><span id="scoreB">0</span></div><div class="bar"><div class="fill" id="fillB"></div></div></div>
+    </div>
+    <div class="btns" style="margin-top:12px">
+      <button class="act" id="resetGatesBtn">ゲート位置リセット</button>
+      <button class="act danger" id="stopBtn">カメラ停止</button>
+    </div>
+    <div id="errBox"></div>
+  </div>
+
+  <div class="panel">
+    <h2>計測履歴</h2>
+    <div class="hist" id="hist"><div class="empty">まだ計測がありません</div></div>
+    <div class="btns" style="margin-top:10px">
+      <button class="act" id="clearHistBtn">履歴クリア</button>
+    </div>
+  </div>
+
+  <div class="notes">
+    <b>使い方</b>
+    <ul>
+      <li>画面上の<b>2本の縦線（ゲート）</b>を指でドラッグして、計測したい範囲に合わせます。</li>
+      <li>2本の線が実世界で何メートル離れているかを「ゲート間の実距離」に入力します。</li>
+      <li>物体が A→B（または B→A）を通過すると、自動で時速を算出します。</li>
+      <li>下のメーターが反応するように<b>感度</b>を調整してください（背景が動くと誤検知します）。</li>
+    </ul>
+    <details>
+      <summary>精度について（必ずお読みください）</summary>
+      <div style="margin-top:8px">
+        <ul>
+          <li>iPhoneのカメラは概ね <b>30〜60fps</b>。高速な物体ほど通過フレーム数が少なく誤差が大きくなります。理論上の時間分解能はフレーム間隔（60fpsで約16ms）です。</li>
+          <li>物体はカメラに対して<b>真横（光軸に垂直な平面上）</b>を通過する前提です。斜めに動くと過小評価されます。</li>
+          <li>2ゲートの間隔は<b>広いほど</b>正確になります（誤差が距離で薄まるため）。</li>
+          <li>三脚等でカメラを固定し、背景の動き・手ブレを抑えてください。あくまで簡易計測（参考値）です。</li>
+        </ul>
+      </div>
+    </details>
+    <div style="margin-top:10px">計算式: <b>時速 = 距離(m) ÷ 通過時間(s) × 3.6</b></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const video = $('video'), overlay = $('overlay'), octx = overlay.getContext('2d');
+
+  // 処理用オフスクリーン（軽量化のため低解像度で差分計算）
+  const PROC_W = 240;
+  let PROC_H = 320;
+  const proc = document.createElement('canvas');
+  const pctx = proc.getContext('2d', { willReadFrequently: true });
+
+  // 状態
+  let stream = null, running = false, rafId = 0;
+  let prevGray = null;
+  let gateA = 0.34, gateB = 0.66;        // 0..1 の横位置（フレーム比）
+  const distEl = $('distInput'), sensEl = $('sens');
+  let distM = parseFloat(distEl.value) || 5;
+  let sens = parseInt(sensEl.value, 10);
+
+  // ゲート検知の状態機械
+  let activeA = false, activeB = false;       // ヒステリシス用
+  let lastEdge = null;                         // {gate:'A'|'B', t:ms}
+  let cooldownUntil = 0;
+  const MIN_DT = 0.004;                        // s 同フレーム誤検知防止
+  const MAX_WINDOW = 4.0;                      // s これを超えたらリセット
+
+  // FPS計測
+  let fpsLast = performance.now(), fpsCount = 0, fps = 0;
+
+  let history = [];
+
+  // ---- カメラ起動 ----
+  async function start() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          frameRate: { ideal: 60, max: 120 },
+          width: { ideal: 1280 }, height: { ideal: 720 }
+        }
+      });
+    } catch (e) {
+      showErr('カメラを起動できませんでした: ' + e.message +
+        '（HTTPS環境・カメラ許可が必要です。Safariの「Aa」→Webサイトの設定 でカメラを許可してください）');
+      return;
+    }
+    video.srcObject = stream;
+    await video.play().catch(()=>{});
+    $('startBtn').classList.add('hidden');
+    $('liveDot').classList.add('live');
+    running = true;
+    prevGray = null;
+    resizeCanvases();
+    loop();
+  }
+
+  function stop() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    $('startBtn').classList.remove('hidden');
+    $('liveDot').classList.remove('live');
+    setStatus('カメラ停止中', '');
+  }
+
+  function resizeCanvases() {
+    const r = overlay.getBoundingClientRect();
+    overlay.width = Math.round(r.width);
+    overlay.height = Math.round(r.height);
+    const ar = (video.videoHeight && video.videoWidth) ? video.videoHeight / video.videoWidth : (PROC_H/PROC_W);
+    PROC_H = Math.max(60, Math.round(PROC_W * ar));
+    proc.width = PROC_W; proc.height = PROC_H;
+  }
+
+  // ---- メインループ ----
+  function loop() {
+    if (!running) return;
+    rafId = requestAnimationFrame(loop);
+    if (video.readyState < 2) return;
+
+    // FPS
+    fpsCount++;
+    const now = performance.now();
+    if (now - fpsLast >= 500) { fps = Math.round(fpsCount * 1000 / (now - fpsLast)); fpsCount = 0; fpsLast = now; $('fps').textContent = fps; }
+
+    // 低解像度に描画してグレースケール差分
+    pctx.drawImage(video, 0, 0, PROC_W, PROC_H);
+    const img = pctx.getImageData(0, 0, PROC_W, PROC_H).data;
+    const n = PROC_W * PROC_H;
+    const gray = new Uint8ClampedArray(n);
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      gray[i] = (img[j] * 77 + img[j+1] * 150 + img[j+2] * 29) >> 8; // 0.299/0.587/0.114
+    }
+
+    let scoreA = 0, scoreB = 0;
+    if (prevGray) {
+      const ax = Math.round(gateA * (PROC_W - 1));
+      const bx = Math.round(gateB * (PROC_W - 1));
+      scoreA = bandMotion(gray, prevGray, ax);
+      scoreB = bandMotion(gray, prevGray, bx);
+      detect(scoreA, scoreB, now);
+    }
+    prevGray = gray;
+
+    // 表示
+    updateMeters(scoreA, scoreB);
+    drawOverlay();
+  }
+
+  // ゲート位置の縦バンド（±band列）の平均フレーム差分 0..255
+  function bandMotion(gray, prev, cx) {
+    const band = 3;
+    const x0 = Math.max(0, cx - band), x1 = Math.min(PROC_W - 1, cx + band);
+    let sum = 0, cnt = 0;
+    for (let y = 0; y < PROC_H; y++) {
+      const row = y * PROC_W;
+      for (let x = x0; x <= x1; x++) {
+        const d = gray[row + x] - prev[row + x];
+        sum += d < 0 ? -d : d;
+        cnt++;
+      }
+    }
+    return cnt ? sum / cnt : 0;
+  }
+
+  // 感度→しきい値（avg diff）。高感度=低しきい値
+  function thresholds() {
+    const high = 38 - sens * 0.32;   // sens0:38 sens100:6
+    return { high: Math.max(4, high), low: Math.max(2, high * 0.5) };
+  }
+
+  function detect(sA, sB, now) {
+    const { high, low } = thresholds();
+    // 立ち上がりエッジ（ヒステリシス）
+    const edgeA = !activeA && sA > high;
+    const edgeB = !activeB && sB > high;
+    if (sA > high) activeA = true; else if (sA < low) activeA = false;
+    if (sB > high) activeB = true; else if (sB < low) activeB = false;
+
+    if (now < cooldownUntil) return;
+
+    if (edgeA) onEdge('A', now);
+    if (edgeB) onEdge('B', now);
+
+    // 古いエッジは破棄
+    if (lastEdge && (now - lastEdge.t) / 1000 > MAX_WINDOW) lastEdge = null;
+  }
+
+  function onEdge(gate, now) {
+    if (lastEdge && lastEdge.gate !== gate) {
+      const dt = (now - lastEdge.t) / 1000;
+      if (dt >= MIN_DT && dt <= MAX_WINDOW) {
+        recordMeasurement(dt, lastEdge.gate, gate);
+        cooldownUntil = now + 600;   // ms 連続検知の抑制
+        lastEdge = null;
+        return;
+      }
+    }
+    lastEdge = { gate, t: now };
+    setStatus(`ゲート${gate} 通過 — 反対側を待機中…`, 'armed');
+  }
+
+  function recordMeasurement(dt, from, to) {
+    const speed = distM / dt * 3.6; // km/h
+    const card = $('speedCard');
+    $('speedNum').textContent = speed.toFixed(1);
+    $('speedMeta').textContent = `${from}→${to}・距離 ${distM}m・通過 ${(dt*1000).toFixed(0)}ms`;
+    card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+    setStatus(`計測完了 ${speed.toFixed(1)} km/h`, 'hit');
+    beep();
+    history.unshift({ speed, dt, from, to, time: new Date() });
+    if (history.length > 20) history.pop();
+    renderHist();
+  }
+
+  // ---- 描画 ----
+  function drawOverlay() {
+    const w = overlay.width, h = overlay.height;
+    octx.clearRect(0, 0, w, h);
+    drawGate(gateA * w, 'A', '#22d3ee', activeA);
+    drawGate(gateB * w, 'B', '#3b82f6', activeB);
+  }
+  function drawGate(x, label, color, active) {
+    const h = overlay.height;
+    octx.save();
+    octx.strokeStyle = color;
+    octx.lineWidth = active ? 5 : 2.5;
+    octx.shadowColor = color; octx.shadowBlur = active ? 14 : 4;
+    octx.beginPath(); octx.moveTo(x, 0); octx.lineTo(x, h); octx.stroke();
+    octx.shadowBlur = 0;
+    // ハンドル
+    octx.fillStyle = color;
+    octx.beginPath(); octx.arc(x, h/2, 14, 0, Math.PI*2); octx.fill();
+    octx.fillStyle = '#0b0f17'; octx.font = 'bold 14px sans-serif';
+    octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    octx.fillText(label, x, h/2);
+    octx.restore();
+  }
+
+  function updateMeters(sA, sB) {
+    const { high } = thresholds();
+    const pa = Math.min(100, sA / (high*1.6) * 100);
+    const pb = Math.min(100, sB / (high*1.6) * 100);
+    $('fillA').style.width = pa + '%';
+    $('fillB').style.width = pb + '%';
+    $('scoreA').textContent = sA.toFixed(0);
+    $('scoreB').textContent = sB.toFixed(0);
+    $('meterA').classList.toggle('on', activeA);
+    $('meterB').classList.toggle('on', activeB);
+  }
+
+  function renderHist() {
+    const el = $('hist');
+    if (!history.length) { el.innerHTML = '<div class="empty">まだ計測がありません</div>'; return; }
+    el.innerHTML = history.map(h => {
+      const t = h.time.toLocaleTimeString('ja-JP', {hour12:false});
+      return `<div class="item"><div><span class="sp">${h.speed.toFixed(1)}</span> km/h
+        <span class="dt"> ｜ ${h.from}→${h.to} ｜ ${(h.dt*1000).toFixed(0)}ms</span></div>
+        <span class="dt">${t}</span></div>`;
+    }).join('');
+  }
+
+  function setStatus(text, cls) {
+    const el = $('status');
+    el.textContent = text;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function showErr(msg) {
+    $('errBox').innerHTML = '<div class="err">' + msg + '</div>';
+  }
+
+  // 簡易ビープ
+  let audioCtx = null;
+  function beep() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; o.type = 'sine';
+      g.gain.value = 0.0001;
+      o.connect(g); g.connect(audioCtx.destination);
+      const t = audioCtx.currentTime;
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.start(t); o.stop(t + 0.2);
+    } catch(e) {}
+  }
+
+  // ---- ゲートのドラッグ ----
+  let dragging = null;
+  function pointerX(e) {
+    const r = overlay.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    return Math.min(1, Math.max(0, cx / r.width));
+  }
+  function onDown(e) {
+    const x = pointerX(e);
+    dragging = Math.abs(x - gateA) < Math.abs(x - gateB) ? 'A' : 'B';
+    if (Math.min(Math.abs(x-gateA), Math.abs(x-gateB)) > 0.12) dragging = null;
+    if (dragging) e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const x = pointerX(e);
+    if (dragging === 'A') gateA = Math.min(x, gateB - 0.04);
+    else gateB = Math.max(x, gateA + 0.04);
+    gateA = Math.max(0.01, gateA); gateB = Math.min(0.99, gateB);
+    if (!running) drawOverlay();
+  }
+  function onUp() { dragging = null; }
+  overlay.addEventListener('touchstart', onDown, {passive:false});
+  overlay.addEventListener('touchmove', onMove, {passive:false});
+  overlay.addEventListener('touchend', onUp);
+  overlay.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+
+  // ---- UI イベント ----
+  $('startBtn').addEventListener('click', start);
+  $('stopBtn').addEventListener('click', stop);
+  distEl.addEventListener('input', () => {
+    distM = Math.max(0.1, parseFloat(distEl.value) || 0.1);
+    $('distBadge').textContent = distM.toFixed(1);
+  });
+  sensEl.addEventListener('input', () => { sens = parseInt(sensEl.value,10); $('sensVal').textContent = sens; });
+  $('resetGatesBtn').addEventListener('click', () => { gateA = 0.34; gateB = 0.66; if(!running) drawOverlay(); });
+  $('clearHistBtn').addEventListener('click', () => { history = []; renderHist(); });
+  window.addEventListener('resize', () => { if (running) resizeCanvases(); drawOverlay(); });
+
+  // 初期描画
+  $('distBadge').textContent = distM.toFixed(1);
+  resizeCanvases();
+  drawOverlay();
+})();
+</script>
+</body>
+</html>
