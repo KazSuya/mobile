@@ -65,6 +65,12 @@
   button.act.primary{background:var(--accent);border-color:var(--accent)}
   button.act.danger{color:#fca5a5}
 
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:6px}
+  .seg button{flex:1;border:none;background:transparent;color:var(--muted);border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#fff}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.7;margin:2px 2px 8px}
+  .calc{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;color:var(--accent2)}
+
   .meters{display:flex;gap:8px;margin-top:4px}
   .meter{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
   .meter .lab{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
@@ -114,11 +120,32 @@
 
   <div class="panel">
     <h2>計測設定</h2>
-    <div class="row">
-      <label>ゲート間の実距離</label>
-      <input type="number" id="distInput" value="5" min="0.1" step="0.1" inputmode="decimal">
-      <span class="val">m</span>
+    <div class="seg" id="modeSeg">
+      <button data-mode="direct" class="on">距離を入力</button>
+      <button data-mode="object">物体サイズで算出</button>
     </div>
+
+    <div id="directBox">
+      <div class="row">
+        <label>ゲート間の実距離</label>
+        <input type="number" id="distInput" value="5" min="0.1" step="0.1" inputmode="decimal">
+        <span class="val">m</span>
+      </div>
+    </div>
+
+    <div id="objectBox" class="hidden">
+      <div class="row">
+        <label>物体の実サイズ</label>
+        <input type="number" id="objSize" value="22" min="0.1" step="0.1" inputmode="decimal">
+        <span class="val">cm</span>
+      </div>
+      <p class="hint">画面の<b style="color:var(--accent2)">シアン色の校正バー</b>の両端をドラッグし、物体が通過する位置での<b>見かけの幅</b>に合わせてください。サッカーボール直径≒22cm / 野球ボール≒7.4cm。</p>
+      <div class="row">
+        <label>算出ゲート間距離</label>
+        <span class="calc"><span id="calcDist">--</span> m</span>
+      </div>
+    </div>
+
     <div class="row">
       <label>検知感度</label>
       <input type="range" id="sens" min="0" max="100" value="55">
@@ -150,6 +177,7 @@
       <li>2本の線が実世界で何メートル離れているかを「ゲート間の実距離」に入力します。</li>
       <li>物体が A→B（または B→A）を通過すると、自動で時速を算出します。</li>
       <li>下のメーターが反応するように<b>感度</b>を調整してください（背景が動くと誤検知します）。</li>
+      <li><b>実距離が測れない時</b>は「物体サイズで算出」モードに切替。物体の実サイズ(cm)を入れ、シアンの校正バーを<b>物体が通る位置での見かけ幅</b>に合わせると、ゲート間距離を自動算出します（校正バーは物体と同じ奥行きに置くのがコツ）。</li>
     </ul>
     <details>
       <summary>精度について（必ずお読みください）</summary>
@@ -182,9 +210,32 @@
   let stream = null, running = false, rafId = 0;
   let prevGray = null;
   let gateA = 0.34, gateB = 0.66;        // 0..1 の横位置（フレーム比）
-  const distEl = $('distInput'), sensEl = $('sens');
+  const distEl = $('distInput'), sensEl = $('sens'), objEl = $('objSize');
   let distM = parseFloat(distEl.value) || 5;
   let sens = parseInt(sensEl.value, 10);
+
+  // 計測モード: 'direct'=実距離入力 / 'object'=物体サイズから算出
+  let mode = 'direct';
+  let objSizeM = (parseFloat(objEl.value) || 22) / 100; // cm→m
+  // 校正バー（物体サイズモード）: 0..1 の横位置 + 縦位置(0..1)
+  let calX0 = 0.42, calX1 = 0.58, calY = 0.75;
+
+  // 有効なゲート間距離(m)を返す
+  function effectiveDist() {
+    if (mode === 'object') {
+      const calSpan = Math.abs(calX1 - calX0);
+      const gateSpan = Math.abs(gateB - gateA);
+      if (calSpan < 1e-4) return 0;
+      return gateSpan / calSpan * objSizeM; // 解像度に依存しない比率計算
+    }
+    return distM;
+  }
+
+  function refreshDist() {
+    const d = effectiveDist();
+    $('distBadge').textContent = d ? d.toFixed(2) : '--';
+    $('calcDist').textContent = d ? d.toFixed(2) : '--';
+  }
 
   // ゲート検知の状態機械
   let activeA = false, activeB = false;       // ヒステリシス用
@@ -332,10 +383,12 @@
   }
 
   function recordMeasurement(dt, from, to) {
-    const speed = distM / dt * 3.6; // km/h
+    const d = effectiveDist();
+    if (!d) { setStatus('校正バーを設定してください', 'armed'); return; }
+    const speed = d / dt * 3.6; // km/h
     const card = $('speedCard');
     $('speedNum').textContent = speed.toFixed(1);
-    $('speedMeta').textContent = `${from}→${to}・距離 ${distM}m・通過 ${(dt*1000).toFixed(0)}ms`;
+    $('speedMeta').textContent = `${from}→${to}・距離 ${d.toFixed(2)}m・通過 ${(dt*1000).toFixed(0)}ms`;
     card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
     setStatus(`計測完了 ${speed.toFixed(1)} km/h`, 'hit');
     beep();
@@ -350,6 +403,22 @@
     octx.clearRect(0, 0, w, h);
     drawGate(gateA * w, 'A', '#22d3ee', activeA);
     drawGate(gateB * w, 'B', '#3b82f6', activeB);
+    if (mode === 'object') drawCalBar(w, h);
+  }
+  function drawCalBar(w, h) {
+    const y = calY * h, x0 = calX0 * w, x1 = calX1 * w;
+    octx.save();
+    octx.strokeStyle = '#22d3ee'; octx.fillStyle = '#22d3ee';
+    octx.lineWidth = 3;
+    octx.setLineDash([6,5]);
+    octx.beginPath(); octx.moveTo(x0, y); octx.lineTo(x1, y); octx.stroke();
+    octx.setLineDash([]);
+    for (const x of [x0, x1]) { octx.fillRect(x-7, y-12, 14, 24); }
+    octx.fillStyle = '#0b0f17'; octx.font = 'bold 11px sans-serif';
+    octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    octx.fillStyle = '#22d3ee';
+    octx.fillText('校正バー（物体の幅に合わせる）', (x0+x1)/2, y - 20);
+    octx.restore();
   }
   function drawGate(x, label, color, active) {
     const h = overlay.height;
@@ -419,24 +488,38 @@
 
   // ---- ゲートのドラッグ ----
   let dragging = null;
-  function pointerX(e) {
+  function pointerPos(e) {
     const r = overlay.getBoundingClientRect();
     const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
-    return Math.min(1, Math.max(0, cx / r.width));
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return { x: Math.min(1, Math.max(0, cx / r.width)), y: Math.min(1, Math.max(0, cy / r.height)), r };
   }
   function onDown(e) {
-    const x = pointerX(e);
-    dragging = Math.abs(x - gateA) < Math.abs(x - gateB) ? 'A' : 'B';
-    if (Math.min(Math.abs(x-gateA), Math.abs(x-gateB)) > 0.12) dragging = null;
+    const p = pointerPos(e);
+    dragging = null;
+    // 物体サイズモードでは校正バーのハンドルを優先判定（2D近接 / px換算）
+    if (mode === 'object') {
+      const px = x => x * p.r.width, py = y => y * p.r.height;
+      const d0 = Math.hypot(px(p.x)-px(calX0), py(p.y)-py(calY));
+      const d1 = Math.hypot(px(p.x)-px(calX1), py(p.y)-py(calY));
+      if (Math.min(d0, d1) < 40) dragging = d0 < d1 ? 'cal0' : 'cal1';
+    }
+    if (!dragging) {
+      const g = Math.abs(p.x - gateA) < Math.abs(p.x - gateB) ? 'A' : 'B';
+      if (Math.min(Math.abs(p.x-gateA), Math.abs(p.x-gateB)) <= 0.12) dragging = g;
+    }
     if (dragging) e.preventDefault();
   }
   function onMove(e) {
     if (!dragging) return;
     e.preventDefault();
-    const x = pointerX(e);
-    if (dragging === 'A') gateA = Math.min(x, gateB - 0.04);
-    else gateB = Math.max(x, gateA + 0.04);
+    const p = pointerPos(e);
+    if (dragging === 'A') gateA = Math.min(p.x, gateB - 0.04);
+    else if (dragging === 'B') gateB = Math.max(p.x, gateA + 0.04);
+    else if (dragging === 'cal0') { calX0 = p.x; calY = p.y; }
+    else if (dragging === 'cal1') { calX1 = p.x; calY = p.y; }
     gateA = Math.max(0.01, gateA); gateB = Math.min(0.99, gateB);
+    refreshDist();
     if (!running) drawOverlay();
   }
   function onUp() { dragging = null; }
@@ -452,7 +535,20 @@
   $('stopBtn').addEventListener('click', stop);
   distEl.addEventListener('input', () => {
     distM = Math.max(0.1, parseFloat(distEl.value) || 0.1);
-    $('distBadge').textContent = distM.toFixed(1);
+    refreshDist();
+  });
+  objEl.addEventListener('input', () => {
+    objSizeM = Math.max(0.001, (parseFloat(objEl.value) || 0.1) / 100);
+    refreshDist();
+  });
+  $('modeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    mode = b.dataset.mode;
+    [...$('modeSeg').children].forEach(c => c.classList.toggle('on', c === b));
+    $('directBox').classList.toggle('hidden', mode !== 'direct');
+    $('objectBox').classList.toggle('hidden', mode !== 'object');
+    refreshDist();
+    if (!running) drawOverlay();
   });
   sensEl.addEventListener('input', () => { sens = parseInt(sensEl.value,10); $('sensVal').textContent = sens; });
   $('resetGatesBtn').addEventListener('click', () => { gateA = 0.34; gateB = 0.66; if(!running) drawOverlay(); });
@@ -460,7 +556,7 @@
   window.addEventListener('resize', () => { if (running) resizeCanvases(); drawOverlay(); });
 
   // 初期描画
-  $('distBadge').textContent = distM.toFixed(1);
+  refreshDist();
   resizeCanvases();
   drawOverlay();
 })();
