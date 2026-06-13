@@ -118,6 +118,8 @@
     <div class="meta" id="speedMeta">計測待機中</div>
   </div>
 
+  <button class="act primary" id="measureBtn" style="width:100%;margin-top:12px;font-size:16px;padding:16px">計測開始</button>
+
   <div class="panel">
     <h2>計測設定</h2>
     <div class="seg" id="modeSeg">
@@ -175,7 +177,7 @@
     <ul>
       <li>画面上の<b>2本の縦線（ゲート）</b>を指でドラッグして、計測したい範囲に合わせます。</li>
       <li>2本の線が実世界で何メートル離れているかを「ゲート間の実距離」に入力します。</li>
-      <li>物体が A→B（または B→A）を通過すると、自動で時速を算出します。</li>
+      <li><b>「計測開始」ボタン</b>を押してから物体を通過させます。次に A→B（または B→A）を通過した1つだけを計測し、自動で待機に戻ります（予期せぬ通過で履歴が増えるのを防止）。</li>
       <li>下のメーターが反応するように<b>感度</b>を調整してください（背景が動くと誤検知します）。</li>
       <li><b>実距離が測れない時</b>は「物体サイズで算出」モードに切替。物体の実サイズ(cm)を入れ、シアンの校正バーを<b>物体が通る位置での見かけ幅</b>に合わせると、ゲート間距離を自動算出します（校正バーは物体と同じ奥行きに置くのがコツ）。</li>
     </ul>
@@ -238,6 +240,7 @@
   }
 
   // ゲート検知の状態機械
+  let armed = false;                          // 計測開始ボタンで武装。1回計測したら自動解除
   let activeA = false, activeB = false;       // ヒステリシス用
   let lastEdge = null;                         // {gate:'A'|'B', t:ms}
   let cooldownUntil = 0;
@@ -277,6 +280,7 @@
 
   function stop() {
     running = false;
+    setArmed(false);
     if (rafId) cancelAnimationFrame(rafId);
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
     video.srcObject = null;
@@ -359,6 +363,7 @@
     if (sA > high) activeA = true; else if (sA < low) activeA = false;
     if (sB > high) activeB = true; else if (sB < low) activeB = false;
 
+    if (!armed) return;                 // 計測待機中は記録しない（メーター表示のみ）
     if (now < cooldownUntil) return;
 
     if (edgeA) onEdge('A', now);
@@ -395,6 +400,21 @@
     history.unshift({ speed, dt, from, to, time: new Date() });
     if (history.length > 20) history.pop();
     renderHist();
+    setArmed(false);   // 1回計測したら自動で待機に戻す
+  }
+
+  function setArmed(on) {
+    armed = on;
+    const b = $('measureBtn');
+    if (on) {
+      activeA = activeB = false; lastEdge = null; cooldownUntil = 0;
+      b.textContent = '⏺ 計測中… 通過待ち（タップで中止）';
+      b.classList.remove('primary'); b.classList.add('danger');
+      setStatus('計測中: 物体の通過を待っています', 'armed');
+    } else {
+      b.textContent = '計測開始';
+      b.classList.add('primary'); b.classList.remove('danger');
+    }
   }
 
   // ---- 描画 ----
@@ -533,6 +553,10 @@
   // ---- UI イベント ----
   $('startBtn').addEventListener('click', start);
   $('stopBtn').addEventListener('click', stop);
+  $('measureBtn').addEventListener('click', () => {
+    if (!running) { setStatus('先にカメラを起動してください', 'armed'); return; }
+    setArmed(!armed);
+  });
   distEl.addEventListener('input', () => {
     distM = Math.max(0.1, parseFloat(distEl.value) || 0.1);
     refreshDist();
